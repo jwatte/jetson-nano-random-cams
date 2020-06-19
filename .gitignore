@@ -1,0 +1,10 @@
+jetson-nano-random-cams
+*.d
+*.o
+*.so
+*.a
+.*.swp
+*~
+a.out
+core
+obj/

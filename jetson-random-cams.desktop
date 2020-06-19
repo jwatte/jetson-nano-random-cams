@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Exec=/usr/local/bin/jetson-nano-random-cams
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=Jetson Nano Random Cams
+Comment=github.com/jwatte/jetson-nano-random-cams
