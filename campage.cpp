@@ -4,10 +4,17 @@
 
 #include <cpr/cpr.h>
 
+static char const *userAgent = "Mozilla/5.0";
+
+#define SESSION (*(cpr::Session *)session_)
+
 Campage::Campage() {
+    userAgent_ = userAgent;
+    session_ = new cpr::Session();
 }
 
 Campage::~Campage() {
+    delete (cpr::Session *)session_;
 }
 
 void Campage::setRootPage(std::string const &url) {
@@ -29,7 +36,9 @@ size_t Campage::fetchSome() {
         return 0;
     }
     imageUrls.resize(0);
-    cpr::Response r = cpr::Get(cpr::Url{rootUrl_}, cpr::Header{{"accept", "text/html"}});
+    SESSION.SetUrl(cpr::Url{rootUrl_});
+    SESSION.SetHeader(cpr::Header{{"accept", "text/html"}, {"user-agent", userAgent_}});
+    cpr::Response r = SESSION.Get();
     if (r.status_code != 200) {
         std::cerr << rootUrl_ << " status " << r.status_code << std::endl;
         return 0;
@@ -66,13 +75,19 @@ size_t Campage::fetchSome() {
     return imageUrls.size();
 }
 
+void Campage::setUserAgent(std::string const &ua) {
+    userAgent_ = ua;
+}
+
 Image *Campage::fetch_image(std::string const &url) {
-    cpr::Response r = cpr::Get(cpr::Url{url}, cpr::Header{{"accept", "image/*"}});
+    SESSION.SetUrl(cpr::Url{url});
+    SESSION.SetHeader(cpr::Header{{"accept", "image/*"}, {"user-agent", userAgent_}});
+    cpr::Response r = SESSION.Get();
     if (r.status_code != 200) {
         std::cerr << url << " status " << r.status_code << std::endl;
         return 0;
     }
-    Image *ret = new Image();
+    Image *ret = new Image(url);
     if (!ret->load(&r.text[0], r.text.size())) {
         delete ret;
         return nullptr;

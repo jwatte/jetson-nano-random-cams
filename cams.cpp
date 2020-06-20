@@ -21,14 +21,13 @@ Fl_BoxImage *picturebox;
 Fl_Multiline_Output *textoutput;
 std::vector<std::string> textlines;
 std::vector<DetectBox> indetections;
+int imageTime;
 
 Options opt;
 volatile bool progressChanged;
 Image *nextImage;
 volatile bool imageChanged;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-#define IMAGE_TIME 15
 
 void progress(std::string prog) {
     std::cerr << "progress: " << prog << std::endl;
@@ -49,145 +48,6 @@ void showImage(Image *im, std::vector<DetectBox> const &d) {
 }
 
 
-static inline unsigned char clamp(float f) {
-    if (f < 0) return 0;
-    if (f > 255) return 255;
-    return (unsigned char)(int(f) & 0xff);
-}
-
-static bool fixupImage(Image *fi) {
-    unsigned char const *data = fi->data();
-    int comp = fi->components();
-    int wid = fi->width();
-    int hei = fi->height();
-
-    int64_t sum_low = 0;
-    int64_t count_low = 0;
-    int64_t sum_high = 0;
-    int64_t count_high = 0;
-    int minval = 0xff;
-    int maxval = 0;
-
-#define COLLECT(x) \
-    if (x < 0x80) { \
-        sum_low += x; \
-        count_low++; \
-    } else { \
-        sum_high += x; \
-        count_high++; \
-    } \
-    if (x < minval) { \
-        minval = x; \
-    } \
-    if (x > maxval) { \
-        maxval = x; \
-    }
-
-    for (int row = 0; row != hei; ++row) {
-        unsigned char const *ptr = data + row * wid * comp;
-        switch (comp) {
-            case 1:
-                for (int col = 0; col != wid; ++col) {
-                    COLLECT(ptr[0]);
-                    ptr += 1;
-                }
-                break;
-            case 2:
-                for (int col = 0; col != wid; ++col) {
-                    COLLECT(ptr[0]);
-                    ptr += 2;
-                }
-                break;
-            case 3:
-                for (int col = 0; col != wid; ++col) {
-                    COLLECT(ptr[0]);
-                    COLLECT(ptr[1]);
-                    COLLECT(ptr[2]);
-                    ptr += 3;
-                }
-                break;
-            case 4:
-                for (int col = 0; col != wid; ++col) {
-                    COLLECT(ptr[0]);
-                    COLLECT(ptr[1]);
-                    COLLECT(ptr[2]);
-                    ptr += 4;
-                }
-                break;
-        }
-    }
-    if (int(minval) + 40 > int(maxval)) {
-        std::cerr << "minval " << minval << " maxval " << maxval << " bad contrast" << std::endl;
-        return false;
-    }
-
-    float mul = 1.0f;
-    float add = 0.0f;
-    if (count_low > 3 * count_high) {   //  dark
-        float avglo = double(sum_low) / double(count_low);
-        if (avglo <= 20) {
-            std::cerr << "minval " << minval << " maxval " << maxval << " count_low " << count_low << " count_high " << count_high << "avglo " << avglo << " too dark" << std::endl;
-            return false;
-        }
-    }
-    if (count_high > 10 * count_low) {    //  light
-        float avghi = double(sum_high) / double(count_high);
-        if (avghi >= 235) {
-            std::cerr << "minval " << minval << " maxval " << maxval << " count_low " << count_low << " count_high " << count_high << " avghi " << avghi << " too light" << std::endl;
-            return false;
-        }
-    }
-
-    float avghi = double(sum_high) / double(count_high);
-    float avglo = double(sum_low) / double(count_low);
-    add = (64.0f - avglo) * 0.33f;
-    mul = (2.0f + 128.0f / (avghi - avglo)) * 0.33f;
-    /*
-    std::cerr << "count_low " << count_low << " sum_low " << sum_low << " avglo " << avglo <<
-        " count_high " << count_high << " sum_high " << sum_high << " avghi " << avghi <<
-        " adjust: mul " << mul << " add " << add << std::endl;
-    */
-
-#define ADJUST(x) \
-    x = clamp(float(x + add) * mul)
-
-    for (int row = 0; row != hei; ++row) {
-        unsigned char *ptr = (unsigned char *)data + row * wid * comp;
-        switch (comp) {
-            case 1:
-                for (int col = 0; col != wid; ++col) {
-                    ADJUST(ptr[0]);
-                    ptr += 1;
-                }
-                break;
-            case 2:
-                for (int col = 0; col != wid; ++col) {
-                    ADJUST(ptr[0]);
-                    ptr += 2;
-                }
-                break;
-            case 3:
-                for (int col = 0; col != wid; ++col) {
-                    ADJUST(ptr[0]);
-                    ADJUST(ptr[1]);
-                    ADJUST(ptr[2]);
-                    ptr += 3;
-                }
-                break;
-            case 4:
-                for (int col = 0; col != wid; ++col) {
-                    ADJUST(ptr[0]);
-                    ADJUST(ptr[1]);
-                    ADJUST(ptr[2]);
-                    ptr += 4;
-                }
-                break;
-        }
-    }
-
-    return true;
-}
-
 static void *load_images(void *) {
 
     DetectModel m;
@@ -198,6 +58,7 @@ static void *load_images(void *) {
     }
 
     Campage cp;
+    cp.setUserAgent(opt.get_string("user-agent"));
     // cp.setRootPage("http://www.opentopia.com/hiddencam.php?showmode=standard&country=*&seewhat=highlyrated");
     cp.setImageUrlMatch("http://images.opentopia.com/cams/*/medium.jpg");
     cp.addImageUrlReplace("/medium.jpg", "/big.jpg");
@@ -275,7 +136,7 @@ static void *load_images(void *) {
                         progress(prog);
                     }
                     showImage(fi, m.detections);
-                    sleep(IMAGE_TIME);
+                    sleep(imageTime);
                 } else {
                     progress("skipping image " + cp.imageUrls[i] + " because of bad quality");
                 }
@@ -320,6 +181,10 @@ void timeout_callback(void *) {
 
 int main(int argc, char const **argv) {
     opt.define_string('n', "network", "ssd-mobilenet", "the network model name to use (multiped, facenet, ssd-inception, ssd-mobilenet, etc)");
+    opt.define_int64('t', "time", 15, "how long to show each image (in seconds)");
+    opt.define_int64('x', "xpos", 64, "horizontal position of window");
+    opt.define_int64('y', "ypos", 400, "vertical position of window");
+    opt.define_string('u', "user-agent", "Mozilla/5.0", "user-agent header to send with web requests");
     if (!opt.parse(&argc, argv)) {
         for (auto const & e : opt.errors) {
             std::cerr << e << std::endl;
@@ -330,8 +195,9 @@ int main(int argc, char const **argv) {
         std::cerr << "this program does not support inputs files" << std::endl;
         return 1;
     }
+    imageTime = opt.get_int64("time");
 
-    window = new Fl_Double_Window(64, 400, 1800, 640, "Observations");
+    window = new Fl_Double_Window(opt.get_int64("xpos"), opt.get_int64("ypos"), 1800, 640, "Observations");
     window->color(FL_DARK3);
 
     picturebox = new Fl_BoxImage(10, 10, 880, 620, 0);

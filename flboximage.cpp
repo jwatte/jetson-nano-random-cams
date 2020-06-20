@@ -54,6 +54,7 @@ void Fl_BoxImage::image(Image *img)
         delete drawimg_;
         drawimg_ = nullptr;
     }
+    label(img->label_.c_str());
     redraw();
 }
 
@@ -94,6 +95,6 @@ void Fl_BoxImage::draw()
         int w = (p.right_ - p.left_) * ww / imgw;
         int h = (p.bottom_ - p.top_) * wh / imgh;
         fl_rect(l, t, w, h);
-        fl_draw(p.className_.c_str(), l+2, t+2);
+        fl_draw(p.className_.c_str(), l+2, t+17);
     }
 }
