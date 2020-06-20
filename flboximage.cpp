@@ -1,5 +1,6 @@
 #include "flboximage.h"
 #include <FL/fl_draw.H>
+#include <iostream>
 
 Fl_BoxImage::Fl_BoxImage(int x, int y, int w, int h, char const *label) :
     Fl_Widget(x, y, w, h, label),
@@ -73,7 +74,7 @@ void Fl_BoxImage::draw()
         wh = goth;
         ww = imgw * goth / imgh;
     } else {
-        ww = imgw;
+        ww = gotw;
     }
     if (drawimg_ != nullptr && (drawimg_->w() != ww || drawimg_->h() != wh)) {
         delete drawimg_;
@@ -88,10 +89,10 @@ void Fl_BoxImage::draw()
     fl_font(FL_HELVETICA, 16);
     fl_color(boxesColor_);
     for (auto const &p : boxes_) {
-        int l = p.left_ * gotw / imgw + xpos;
-        int t = p.top_ * goth / imgh + ypos;
-        int w = (p.right_ - p.left_) * gotw / imgw;
-        int h = (p.bottom_ - p.top_) * goth / imgh;
+        int l = p.left_ * ww / imgw + xpos;
+        int t = p.top_ * wh / imgh + ypos;
+        int w = (p.right_ - p.left_) * ww / imgw;
+        int h = (p.bottom_ - p.top_) * wh / imgh;
         fl_rect(l, t, w, h);
         fl_draw(p.className_.c_str(), l+2, t+2);
     }
