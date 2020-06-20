@@ -3,7 +3,7 @@ OBJFILES:=$(patsubst %.cpp,obj/%.o,$(CPPFILES))
 NAME:=jetson-nano-random-cams
 
 $(NAME):	setup $(OBJFILES)
-	g++ -o "$(NAME)" -g -Wall -Werror $(OBJFILES) -lfltk -lpthread
+	g++ -o "$(NAME)" -g -Wall -Werror $(OBJFILES) -L /usr/local/cuda-10.0/targets/aarch64-linux/lib -lfltk -lpthread -ljetson-inference -ljetson-utils -lcuda -lcudart -lcpr -lfltk
 	@echo "you may want to 'make install' to install"
 
 install:
@@ -20,6 +20,6 @@ setup:
 
 obj/%.o:	%.cpp
 	@mkdir -p obj
-	g++ -MMD -c -std=c++14 -g -Wall -Werror -o $@ $<
+	g++ -MMD -c -std=c++14 -g -Wall -Werror -I /usr/local/cuda-10.0/targets/aarch64-linux/include -o $@ $<
 
 -include $(patsubst %.o,%.d,$(OBJFILES))
