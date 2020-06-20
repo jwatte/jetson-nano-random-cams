@@ -7,3 +7,4 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=Jetson Nano Random Cams
 Comment=github.com/jwatte/jetson-nano-random-cams
+Categories=Application
